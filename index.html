@@ -11,7 +11,7 @@
   h1 { font-size: 20px; margin: 0 0 20px; }
   label { display: block; font-weight: 600; margin: 0 0 7px; }
   .field { margin-bottom: 15px; }
-  .name-row { display: grid; grid-template-columns: minmax(0, 3fr) minmax(105px, 1fr); gap: 12px; }
+  .name-row { display: grid; grid-template-columns: minmax(0, 13fr) minmax(105px, 7fr); gap: 12px; }
   input, textarea { width: 100%; border: 1px solid #cbd2dc; border-radius: 6px; padding: 9px 10px; font: inherit; background: #fff; }
   textarea { min-height: 90px; resize: vertical; }
   .input-copy { display: flex; gap: 6px; }
@@ -30,7 +30,7 @@
   @media (max-width: 480px) {
     body { padding: 10px; }
     .app { padding: 15px; }
-    .name-row { grid-template-columns: minmax(0, 2fr) minmax(105px, 1fr); gap: 8px; }
+    .name-row { grid-template-columns: minmax(0, 17fr) minmax(105px, 13fr); gap: 8px; }
   }
 </style>
 </head>
@@ -55,7 +55,7 @@
         </div>
       </div>
       <div>
-        <label for="lastDigits">4 последние цифры</label>
+        <label for="lastDigits">Номер</label>
         <div class="input-copy">
           <input id="lastDigits" inputmode="numeric" maxlength="4" placeholder="1234">
           <button type="button" data-copy="lastDigits" title="Копировать" tabindex="-1">⧉</button>
