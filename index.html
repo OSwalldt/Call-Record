@@ -74,6 +74,7 @@
     <div class="actions">
       <button class="primary" type="submit" id="submitButton">Сохранить заявку</button>
       <button type="button" id="cancelEdit" hidden>Отмена</button>
+      <button type="button" id="copyAll">Копировать всё</button>
       <button type="button" id="clearForm">Очистить поля</button>
     </div>
   </form>
@@ -134,7 +135,7 @@ function formatItem(item) {
   return [
     'Организация: ' + (item.organization || ''),
     'Имя: ' + (item.clientName || ''),
-    '4 последние цифры клиента: ' + (item.lastDigits || ''),
+    'Номер: ' + (item.lastDigits || ''),
     'Суть проблемы: ' + (item.problem || '')
   ].join('\n');
 }
@@ -236,6 +237,15 @@ $('callForm').addEventListener('submit', event => {
 });
 
 $('cancelEdit').addEventListener('click', cancelEdit);
+
+$('copyAll').addEventListener('click', () => {
+  copyText(formatItem({
+    organization: value('organization'),
+    clientName: value('clientName'),
+    lastDigits: value('lastDigits'),
+    problem: value('problem')
+  }));
+});
 
 $('clearForm').addEventListener('click', () => {
   fields.forEach(id => $(id).value = '');
