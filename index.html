@@ -22,10 +22,14 @@
   .primary:hover { background: #12598f; }
   .actions { display: flex; gap: 8px; margin-top: 8px; }
   h2 { font-size: 16px; margin: 24px 0 12px; }
-  .history-item { border: 1px solid #e0e5eb; border-radius: 7px; padding: 12px; margin-bottom: 9px; }
-  .history-meta { color: #687384; font-size: 12px; margin-bottom: 7px; }
+  .history-item { position: relative; border: 1px solid #e0e5eb; border-radius: 7px; padding: 12px; margin-bottom: 9px; }
+  .history-meta { color: #687384; font-size: 12px; margin-bottom: 7px; padding-right: 105px; }
   .history-text { white-space: pre-wrap; overflow-wrap: anywhere; }
   .history-actions { display: flex; gap: 7px; margin-top: 10px; }
+  .completion-toggle { position: absolute; top: 10px; right: 12px; display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; font-weight: 400; cursor: pointer; }
+  .completion-toggle input { width: 16px; height: 16px; margin: 0; cursor: pointer; }
+  .history-item.completed { border-color: #b8c8bc; }
+  .history-item.completed .history-text { color: #687384; }
   .empty { color: #758091; }
   @media (max-width: 480px) {
     body { padding: 10px; }
@@ -45,7 +49,6 @@
         <button type="button" data-copy="organization" title="Копировать" tabindex="-1">⧉</button>
       </div>
     </div>
-
     <div class="name-row field">
       <div>
         <label for="clientName">Имя</label>
@@ -62,7 +65,6 @@
         </div>
       </div>
     </div>
-
     <div class="field">
       <label for="problem">Суть проблемы</label>
       <div class="input-copy">
@@ -70,7 +72,6 @@
         <button type="button" data-copy="problem" title="Копировать" tabindex="-1">⧉</button>
       </div>
     </div>
-
     <div class="actions">
       <button class="primary" type="submit" id="submitButton">Сохранить заявку</button>
       <button type="button" id="cancelEdit" hidden>Отмена</button>
@@ -82,14 +83,12 @@
   <h2>История заявок</h2>
   <div id="history"></div>
 </div>
-
 <script>
 const STORAGE_KEY = 'call_requests_v2';
 const fields = ['organization', 'clientName', 'lastDigits', 'problem'];
 let editingId = null;
 const $ = id => document.getElementById(id);
 const value = id => $(id).value.trim();
-
 async function copyText(text) {
   try {
     await navigator.clipboard.writeText(text);
@@ -106,11 +105,9 @@ async function copyText(text) {
 document.querySelectorAll('[data-copy]').forEach(button => {
   button.addEventListener('click', () => copyText(value(button.dataset.copy)));
 });
-
 $('lastDigits').addEventListener('input', event => {
   event.target.value = event.target.value.replace(/\D/g, '').slice(0, 4);
 });
-
 function loadItems() {
   try {
     const items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
@@ -121,12 +118,15 @@ function loadItems() {
         item.id = 'request-' + Date.now() + '-' + Math.random().toString(16).slice(2);
         changed = true;
       }
+      if (typeof item.completed !== 'boolean') {
+        item.completed = false;
+        changed = true;
+      }
     });
     if (changed) saveItems(items);
     return items;
   } catch (_) { return []; }
 }
-
 function saveItems(items) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
 }
@@ -144,7 +144,6 @@ function renderHistory() {
   const host = $('history');
   const items = loadItems();
   host.innerHTML = '';
-
   if (!items.length) {
     const empty = document.createElement('div');
     empty.className = 'empty';
@@ -155,12 +154,29 @@ function renderHistory() {
 
   items.forEach((item, index) => {
     const card = document.createElement('div');
-    card.className = 'history-item';
+    card.className = 'history-item' + (item.completed ? ' completed' : '');
+
+    const completionLabel = document.createElement('label');
+    completionLabel.className = 'completion-toggle';
+    const completion = document.createElement('input');
+    completion.type = 'checkbox';
+    completion.checked = !!item.completed;
+    completion.setAttribute('aria-label', 'Заявка выполнена');
+    completion.addEventListener('change', () => {
+      const current = loadItems();
+      const target = current.find(entry => entry.id === item.id);
+      if (!target) return;
+      target.completed = completion.checked;
+      saveItems(current);
+      renderHistory();
+    });
+    const completionText = document.createElement('span');
+    completionText.textContent = 'Выполнено';
+    completionLabel.append(completion, completionText);
 
     const meta = document.createElement('div');
     meta.className = 'history-meta';
     meta.textContent = (item.date || '') + (item.lastDigits ? ' · ' + item.lastDigits : '');
-
     const content = document.createElement('div');
     content.className = 'history-text';
     content.textContent = formatItem(item);
@@ -171,7 +187,6 @@ function renderHistory() {
     const edit = document.createElement('button');
     edit.textContent = 'Редактировать';
     edit.addEventListener('click', () => startEdit(item));
-
     const copy = document.createElement('button');
     copy.textContent = 'Копировать заявку';
     copy.addEventListener('click', () => copyText(formatItem(item)));
@@ -184,9 +199,8 @@ function renderHistory() {
       saveItems(current);
       renderHistory();
     });
-
     actions.append(edit, copy, remove);
-    card.append(meta, content, actions);
+    card.append(completionLabel, meta, content, actions);
     host.appendChild(card);
   });
 }
@@ -203,7 +217,6 @@ function startEdit(item) {
   $('organization').focus();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
-
 function cancelEdit() {
   setEditMode(null);
   fields.forEach(id => $(id).value = '');
@@ -219,16 +232,15 @@ $('callForm').addEventListener('submit', event => {
   };
 
   if (!data.organization && !data.clientName && !data.lastDigits && !data.problem) return;
-
   const items = loadItems();
   if (editingId) {
     const index = items.findIndex(item => item.id === editingId);
     if (index !== -1) items[index] = { ...items[index], ...data };
     else {
-      items.unshift({ ...data, date: new Date().toLocaleString('ru-RU') });
+      items.unshift({ ...data, completed: false, date: new Date().toLocaleString('ru-RU') });
     }
   } else {
-    items.unshift({ ...data, date: new Date().toLocaleString('ru-RU') });
+    items.unshift({ ...data, completed: false, date: new Date().toLocaleString('ru-RU') });
   }
 
   saveItems(items);
@@ -237,7 +249,6 @@ $('callForm').addEventListener('submit', event => {
 });
 
 $('cancelEdit').addEventListener('click', cancelEdit);
-
 $('copyAll').addEventListener('click', () => {
   copyText(formatItem({
     organization: value('organization'),
