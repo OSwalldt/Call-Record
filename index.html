@@ -42,7 +42,7 @@
       <label for="organization">Организация</label>
       <div class="input-copy">
         <input id="organization" placeholder="Название организации">
-        <button type="button" data-copy="organization" title="Копировать">⧉</button>
+        <button type="button" data-copy="organization" title="Копировать" tabindex="-1">⧉</button>
       </div>
     </div>
 
@@ -51,14 +51,14 @@
         <label for="clientName">Имя</label>
         <div class="input-copy">
           <input id="clientName" placeholder="Имя клиента">
-          <button type="button" data-copy="clientName" title="Копировать">⧉</button>
+          <button type="button" data-copy="clientName" title="Копировать" tabindex="-1">⧉</button>
         </div>
       </div>
       <div>
         <label for="lastDigits">4 последние цифры</label>
         <div class="input-copy">
           <input id="lastDigits" inputmode="numeric" maxlength="4" placeholder="1234">
-          <button type="button" data-copy="lastDigits" title="Копировать">⧉</button>
+          <button type="button" data-copy="lastDigits" title="Копировать" tabindex="-1">⧉</button>
         </div>
       </div>
     </div>
@@ -67,12 +67,13 @@
       <label for="problem">Суть проблемы</label>
       <div class="input-copy">
         <textarea id="problem" placeholder="Кратко опишите обращение"></textarea>
-        <button type="button" data-copy="problem" title="Копировать">⧉</button>
+        <button type="button" data-copy="problem" title="Копировать" tabindex="-1">⧉</button>
       </div>
     </div>
 
     <div class="actions">
-      <button class="primary" type="submit">Сохранить заявку</button>
+      <button class="primary" type="submit" id="submitButton">Сохранить заявку</button>
+      <button type="button" id="cancelEdit" hidden>Отмена</button>
       <button type="button" id="clearForm">Очистить поля</button>
     </div>
   </form>
@@ -84,6 +85,7 @@
 <script>
 const STORAGE_KEY = 'call_requests_v2';
 const fields = ['organization', 'clientName', 'lastDigits', 'problem'];
+let editingId = null;
 const $ = id => document.getElementById(id);
 const value = id => $(id).value.trim();
 
@@ -109,8 +111,19 @@ $('lastDigits').addEventListener('input', event => {
 });
 
 function loadItems() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
-  catch (_) { return []; }
+  try {
+    const items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    if (!Array.isArray(items)) return [];
+    let changed = false;
+    items.forEach(item => {
+      if (!item.id) {
+        item.id = 'request-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+        changed = true;
+      }
+    });
+    if (changed) saveItems(items);
+    return items;
+  } catch (_) { return []; }
 }
 
 function saveItems(items) {
@@ -154,6 +167,10 @@ function renderHistory() {
     const actions = document.createElement('div');
     actions.className = 'history-actions';
 
+    const edit = document.createElement('button');
+    edit.textContent = 'Редактировать';
+    edit.addEventListener('click', () => startEdit(item));
+
     const copy = document.createElement('button');
     copy.textContent = 'Копировать заявку';
     copy.addEventListener('click', () => copyText(formatItem(item)));
@@ -167,30 +184,58 @@ function renderHistory() {
       renderHistory();
     });
 
-    actions.append(copy, remove);
+    actions.append(edit, copy, remove);
     card.append(meta, content, actions);
     host.appendChild(card);
   });
 }
 
+function setEditMode(item) {
+  editingId = item ? item.id : null;
+  $('submitButton').textContent = item ? 'Сохранить изменения' : 'Сохранить заявку';
+  $('cancelEdit').hidden = !item;
+}
+
+function startEdit(item) {
+  fields.forEach(id => $(id).value = item[id] || '');
+  setEditMode(item);
+  $('organization').focus();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelEdit() {
+  setEditMode(null);
+  fields.forEach(id => $(id).value = '');
+}
+
 $('callForm').addEventListener('submit', event => {
   event.preventDefault();
-  const item = {
+  const data = {
     organization: value('organization'),
     clientName: value('clientName'),
     lastDigits: value('lastDigits'),
-    problem: value('problem'),
-    date: new Date().toLocaleString('ru-RU')
+    problem: value('problem')
   };
 
-  if (!item.organization && !item.clientName && !item.lastDigits && !item.problem) return;
+  if (!data.organization && !data.clientName && !data.lastDigits && !data.problem) return;
 
   const items = loadItems();
-  items.unshift(item);
+  if (editingId) {
+    const index = items.findIndex(item => item.id === editingId);
+    if (index !== -1) items[index] = { ...items[index], ...data };
+    else {
+      items.unshift({ ...data, date: new Date().toLocaleString('ru-RU') });
+    }
+  } else {
+    items.unshift({ ...data, date: new Date().toLocaleString('ru-RU') });
+  }
+
   saveItems(items);
+  cancelEdit();
   renderHistory();
-  fields.forEach(id => $(id).value = '');
 });
+
+$('cancelEdit').addEventListener('click', cancelEdit);
 
 $('clearForm').addEventListener('click', () => {
   fields.forEach(id => $(id).value = '');
