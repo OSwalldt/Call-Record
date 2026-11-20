@@ -33,6 +33,11 @@
   .history-item.completed { border-color: #b8c8bc; }
   .history-item.completed .history-text { color: #687384; }
   .empty { color: #758091; }
+  .history-clear { margin-top: 14px; }
+  .danger { background: #c93636; border-color: #c93636; color: #fff; }
+  .danger:hover { background: #aa2929; }
+  .clear-confirm { margin-top: 10px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .clear-confirm[hidden] { display: none; }
   @media (max-width: 480px) {
     body { padding: 10px; }
     .app { padding: 15px; }
@@ -84,6 +89,14 @@
 
   <h2>История заявок</h2>
   <div id="history"></div>
+  <div class="history-clear">
+    <button type="button" id="clearHistory" class="danger">Удалить историю заявок</button>
+    <div id="clearConfirm" class="clear-confirm" hidden>
+      <span>Точно удалить историю заявок?</span>
+      <button type="button" id="confirmClearHistory" class="danger">ДА</button>
+      <button type="button" id="cancelClearHistory">НЕТ</button>
+    </div>
+  </div>
 </div>
 <script>
 const STORAGE_KEY = 'call_requests_v2';
@@ -193,6 +206,7 @@ function renderHistory() {
   const host = $('history');
   const items = loadItems();
   host.innerHTML = '';
+  $('clearHistory').disabled = items.length === 0;
   if (!items.length) {
     const empty = document.createElement('div');
     empty.className = 'empty';
@@ -326,6 +340,22 @@ $('callForm').addEventListener('submit', event => {
 });
 
 $('cancelEdit').addEventListener('click', cancelEdit);
+$('clearHistory').addEventListener('click', () => {
+  $('clearConfirm').hidden = false;
+  $('clearHistory').hidden = true;
+});
+$('cancelClearHistory').addEventListener('click', () => {
+  $('clearConfirm').hidden = true;
+  $('clearHistory').hidden = false;
+});
+$('confirmClearHistory').addEventListener('click', () => {
+  saveItems([]);
+  // Сохраняем текущие значения формы, но завершаем режим редактирования удалённой заявки.
+  setEditMode(null);
+  $('clearConfirm').hidden = true;
+  $('clearHistory').hidden = false;
+  renderHistory();
+});
 $('copyAll').addEventListener('click', () => {
   copyText(formatItem({
     organization: value('organization'),
