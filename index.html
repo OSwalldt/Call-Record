@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="favicon_v10.svg">
 <title>Запись звонка</title>
 <style>
   * { box-sizing: border-box; }
@@ -23,11 +24,12 @@
   .actions { display: flex; gap: 8px; margin-top: 8px; }
   h2 { font-size: 16px; margin: 24px 0 12px; }
   .history-item { position: relative; border: 1px solid #e0e5eb; border-radius: 7px; padding: 12px; margin-bottom: 9px; }
-  .history-meta { color: #687384; font-size: 12px; margin-bottom: 7px; padding-right: 105px; }
+  .history-meta { color: #687384; font-size: 12px; margin-bottom: 7px; padding-right: 145px; }
   .history-text { white-space: pre-wrap; overflow-wrap: anywhere; }
   .history-actions { display: flex; gap: 7px; margin-top: 10px; }
-  .completion-toggle { position: absolute; top: 10px; right: 12px; display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; font-weight: 400; cursor: pointer; }
-  .completion-toggle input { width: 16px; height: 16px; margin: 0; cursor: pointer; }
+  .history-toggles { position: absolute; top: 9px; right: 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+  .history-toggle { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; font-weight: 400; cursor: pointer; white-space: nowrap; }
+  .history-toggle input { width: 15px; height: 15px; margin: 0; cursor: pointer; }
   .history-item.completed { border-color: #b8c8bc; }
   .history-item.completed .history-text { color: #687384; }
   .empty { color: #758091; }
@@ -41,11 +43,11 @@
 <body>
 <div class="app">
   <h1>Запись звонка</h1>
-  <form id="callForm">
+  <form id="callForm" autocomplete="off">
     <div class="field">
       <label for="organization">Организация</label>
       <div class="input-copy">
-        <input id="organization" placeholder="Название организации">
+        <input id="organization" autocomplete="off" placeholder="Название организации">
         <button type="button" data-copy="organization" title="Копировать" tabindex="-1">⧉</button>
       </div>
     </div>
@@ -53,14 +55,14 @@
       <div>
         <label for="clientName">Имя</label>
         <div class="input-copy">
-          <input id="clientName" placeholder="Имя клиента">
+          <input id="clientName" autocomplete="off" placeholder="Имя клиента">
           <button type="button" data-copy="clientName" title="Копировать" tabindex="-1">⧉</button>
         </div>
       </div>
       <div>
         <label for="lastDigits">Номер</label>
         <div class="input-copy">
-          <input id="lastDigits" inputmode="numeric" maxlength="4" placeholder="1234">
+          <input id="lastDigits" autocomplete="off" inputmode="numeric" maxlength="4" placeholder="1234">
           <button type="button" data-copy="lastDigits" title="Копировать" tabindex="-1">⧉</button>
         </div>
       </div>
@@ -68,7 +70,7 @@
     <div class="field">
       <label for="problem">Суть проблемы</label>
       <div class="input-copy">
-        <textarea id="problem" placeholder="Кратко опишите обращение"></textarea>
+        <textarea id="problem" autocomplete="off" placeholder="Кратко опишите обращение"></textarea>
         <button type="button" data-copy="problem" title="Копировать" tabindex="-1">⧉</button>
       </div>
     </div>
@@ -122,6 +124,14 @@ function loadItems() {
         item.completed = false;
         changed = true;
       }
+      if (typeof item.includeTime !== 'boolean') {
+        item.includeTime = false;
+        changed = true;
+      }
+      if (!Object.prototype.hasOwnProperty.call(item, 'completedAt')) {
+        item.completedAt = null;
+        changed = true;
+      }
     });
     if (changed) saveItems(items);
     return items;
@@ -140,6 +150,41 @@ function formatItem(item) {
   ].join('\n');
 }
 
+function parseCreatedDate(dateText) {
+  const match = String(dateText || '').match(/^(\\d{1,2})\\.(\\d{1,2})\\.(\\d{4}),?\\s+(\\d{1,2}):(\\d{2})(?::(\\d{2}))?/);
+  if (!match) return null;
+  const [, day, month, year, hour, minute, second = '0'] = match;
+  const date = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+function formatClock(date) {
+  return String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0');
+}
+function formatHistoryMeta(item) {
+  const created = parseCreatedDate(item.date);
+  const parts = [];
+  if (item.lastDigits) parts.push(item.lastDigits);
+  if (created) parts.push(
+    String(created.getDate()).padStart(2, '0') + '.' +
+    String(created.getMonth() + 1).padStart(2, '0') + '.' +
+    created.getFullYear() + ', ' + formatClock(created)
+  );
+  else if (item.date) parts.push(item.date);
+  let result = parts.join(' · ');
+  if (item.includeTime && item.completed && item.completedAt && created) {
+    const completedAt = new Date(item.completedAt);
+    if (!Number.isNaN(completedAt.getTime())) {
+      const elapsed = Math.max(0, completedAt.getTime() - created.getTime());
+      const totalMinutes = Math.floor(elapsed / 60000);
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      result += ' - ' + formatClock(completedAt) + ' = ' +
+        String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0');
+    }
+  }
+  return result;
+}
+
 function renderHistory() {
   const host = $('history');
   const items = loadItems();
@@ -156,8 +201,11 @@ function renderHistory() {
     const card = document.createElement('div');
     card.className = 'history-item' + (item.completed ? ' completed' : '');
 
+    const toggles = document.createElement('div');
+    toggles.className = 'history-toggles';
+
     const completionLabel = document.createElement('label');
-    completionLabel.className = 'completion-toggle';
+    completionLabel.className = 'history-toggle';
     const completion = document.createElement('input');
     completion.type = 'checkbox';
     completion.checked = !!item.completed;
@@ -167,6 +215,7 @@ function renderHistory() {
       const target = current.find(entry => entry.id === item.id);
       if (!target) return;
       target.completed = completion.checked;
+      target.completedAt = completion.checked ? new Date().toISOString() : null;
       saveItems(current);
       renderHistory();
     });
@@ -174,9 +223,28 @@ function renderHistory() {
     completionText.textContent = 'Выполнено';
     completionLabel.append(completion, completionText);
 
+    const includeTimeLabel = document.createElement('label');
+    includeTimeLabel.className = 'history-toggle';
+    const includeTime = document.createElement('input');
+    includeTime.type = 'checkbox';
+    includeTime.checked = !!item.includeTime;
+    includeTime.setAttribute('aria-label', 'Учесть время');
+    includeTime.addEventListener('change', () => {
+      const current = loadItems();
+      const target = current.find(entry => entry.id === item.id);
+      if (!target) return;
+      target.includeTime = includeTime.checked;
+      saveItems(current);
+      renderHistory();
+    });
+    const includeTimeText = document.createElement('span');
+    includeTimeText.textContent = 'Учесть время';
+    includeTimeLabel.append(includeTime, includeTimeText);
+    toggles.append(completionLabel, includeTimeLabel);
+
     const meta = document.createElement('div');
     meta.className = 'history-meta';
-    meta.textContent = (item.date || '') + (item.lastDigits ? ' · ' + item.lastDigits : '');
+    meta.textContent = formatHistoryMeta(item);
     const content = document.createElement('div');
     content.className = 'history-text';
     content.textContent = formatItem(item);
@@ -200,7 +268,7 @@ function renderHistory() {
       renderHistory();
     });
     actions.append(edit, copy, remove);
-    card.append(completionLabel, meta, content, actions);
+    card.append(toggles, meta, content, actions);
     host.appendChild(card);
   });
 }
@@ -237,10 +305,10 @@ $('callForm').addEventListener('submit', event => {
     const index = items.findIndex(item => item.id === editingId);
     if (index !== -1) items[index] = { ...items[index], ...data };
     else {
-      items.unshift({ ...data, completed: false, date: new Date().toLocaleString('ru-RU') });
+      items.unshift({ ...data, completed: false, completedAt: null, includeTime: false, date: new Date().toLocaleString('ru-RU') });
     }
   } else {
-    items.unshift({ ...data, completed: false, date: new Date().toLocaleString('ru-RU') });
+    items.unshift({ ...data, completed: false, completedAt: null, includeTime: false, date: new Date().toLocaleString('ru-RU') });
   }
 
   saveItems(items);
