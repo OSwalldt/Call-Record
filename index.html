@@ -28,8 +28,14 @@
   .history-text { white-space: pre-wrap; overflow-wrap: anywhere; }
   .history-actions { display: flex; gap: 7px; margin-top: 10px; }
   .history-toggles { position: absolute; top: 9px; right: 12px; width: 112px; display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+  .history-toggle-row { display: flex; align-items: center; gap: 7px; }
   .history-toggle { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; font-weight: 400; cursor: pointer; white-space: nowrap; }
   .history-toggle input { width: 15px; height: 15px; margin: 0; cursor: pointer; }
+  .history-time-button { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: #687384; cursor: pointer; }
+  .history-time-button:hover { background: #edf1f6; }
+  .history-time-button.active { color: #1769aa; }
+  .history-time-button svg { display: block; width: 15px; height: 15px; }
+  .history-time-button:focus-visible { outline: 2px solid #1769aa; outline-offset: 2px; }
   .history-item.completed { border-color: #b8c8bc; }
   .history-item.completed .history-text { color: #687384; }
   .empty { color: #758091; }
@@ -242,28 +248,30 @@ function renderHistory() {
     completionText.textContent = 'Выполнено';
     completionLabel.append(completion, completionText);
 
-    toggles.append(completionLabel);
+    const completionRow = document.createElement('div');
+    completionRow.className = 'history-toggle-row';
+    completionRow.appendChild(completionLabel);
 
     if (item.completed) {
-      const includeTimeLabel = document.createElement('label');
-      includeTimeLabel.className = 'history-toggle';
-      const includeTime = document.createElement('input');
-      includeTime.type = 'checkbox';
-      includeTime.checked = !!item.includeTime;
-      includeTime.setAttribute('aria-label', 'Учесть время');
-      includeTime.addEventListener('change', () => {
+      const timeButton = document.createElement('button');
+      timeButton.type = 'button';
+      timeButton.className = 'history-time-button' + (item.includeTime ? ' active' : '');
+      timeButton.title = 'Учесть время';
+      timeButton.setAttribute('aria-label', 'Учесть время');
+      timeButton.setAttribute('aria-pressed', String(!!item.includeTime));
+      timeButton.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>';
+      timeButton.addEventListener('click', () => {
         const current = loadItems();
         const target = current.find(entry => entry.id === item.id);
         if (!target || !target.completed) return;
-        target.includeTime = includeTime.checked;
+        target.includeTime = !target.includeTime;
         saveItems(current);
         renderHistory();
       });
-      const includeTimeText = document.createElement('span');
-      includeTimeText.textContent = 'Учесть время';
-      includeTimeLabel.append(includeTime, includeTimeText);
-      toggles.appendChild(includeTimeLabel);
+      completionRow.appendChild(timeButton);
     }
+
+    toggles.appendChild(completionRow);
 
     const meta = document.createElement('div');
     meta.className = 'history-meta';
